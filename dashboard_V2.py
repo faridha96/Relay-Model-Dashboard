@@ -83,18 +83,29 @@ distribution_col = st.sidebar.selectbox(
     else 0
 )
 
+available_distribution_values = (
+    df[distribution_col]
+    .dropna()
+    .astype(str)
+    .unique()
+    .tolist()
+)
+
 distribution_filter = st.sidebar.multiselect(
     "Relay Population",
-    ["both", "fti_only", "health_only"],
-    default=["both"]
+    available_distribution_values,
+    default=available_distribution_values
 )
 
 working_df = df[
-    df[distribution_col].isin(distribution_filter)
+    df[distribution_col].astype(str).isin(distribution_filter)
 ].copy()
 
 if working_df.empty:
-    st.error("No records available after applying the relay population filter.")
+    st.error(
+        "No records available after applying the relay population filter. "
+        "Check the selected distribution column and selected values."
+    )
     st.stop()
 
 
@@ -158,12 +169,11 @@ health_mask = working_df[health_col].notna()
 
 if health_mask.sum() >= 4:
 
-    working_df.loc[health_mask, "Health_Q"] = pd.qcut(
+    working_df.loc[health_mask, "Health_Q"] = safe_qcut(
         working_df.loc[health_mask, health_col],
         q=4,
         labels=health_quartiles,
-        duplicates="drop"
-    ).astype("object")
+    )
 
 
 
@@ -173,12 +183,11 @@ risk_mask = working_df[risk_col].notna()
 
 if risk_mask.sum() >= 4:
 
-    working_df.loc[risk_mask, "Risk_Q"] = pd.qcut(
+    working_df.loc[risk_mask, "Risk_Q"] = safe_qcut(
         working_df.loc[risk_mask, risk_col],
         q=4,
         labels=risk_quartiles,
-        duplicates="drop"
-    ).astype("object")
+    )
 
 
 #quartiles = ["Q1", "Q2", "Q3", "Q4"]
@@ -263,8 +272,39 @@ def plot_heatmap(df_pct, title):
         tickfont=dict(size=12)
     )
 
-    
     return fig
+
+
+def safe_qcut(series, q, labels):
+    try:
+        return pd.qcut(
+            series,
+            q=q,
+            labels=labels,
+            duplicates="drop"
+        ).astype("object")
+    except Exception:
+        unique_values = series.dropna().unique()
+        bins = min(q, max(1, len(unique_values)))
+        if bins == 1:
+            return pd.Series(
+                [labels[0]] * len(series),
+                index=series.index,
+                dtype="object"
+            )
+
+        try:
+            return pd.cut(
+                series,
+                bins=bins,
+                labels=labels[:bins]
+            ).astype("object")
+        except Exception:
+            return pd.Series(
+                [labels[0]] * len(series),
+                index=series.index,
+                dtype="object"
+            )
 
 
 def calculate_failure_stats(
@@ -272,7 +312,6 @@ def calculate_failure_stats(
     full_df,
     failure_col
 ):
-
     total_failures = (
         full_df[failure_col]
         .notna()
@@ -360,7 +399,7 @@ def failure_breakdown(
         subset
         .groupby(quartile_col)
         .agg(
-            Total=("id", "count"),
+            Total=(quartile_col, "size"),
             Failures=(
                 failure_col,
                 lambda x: x.notna().sum()
