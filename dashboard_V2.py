@@ -109,8 +109,6 @@ if working_df.empty:
     st.stop()
 
 
-
-
 def safe_qcut(series, q, labels):
     try:
         return pd.qcut(
@@ -310,11 +308,10 @@ def plot_heatmap(df_pct, title):
 
 def calculate_failure_stats(
     subset,
-    full_df,
     failure_col
 ):
     total_failures = (
-        full_df[failure_col]
+        subset[failure_col]
         .notna()
         .sum()
     )
@@ -324,19 +321,6 @@ def calculate_failure_stats(
         .notna()
         .sum()
     )
-
-    failures_missed = (
-        total_failures -
-        failures_found
-    )
-
-    # fnr = (
-    #     failures_missed /
-    #     total_failures *
-    #     100
-    #     if total_failures > 0
-    #     else 0
-    # )
 
     failure_rate = (
         failures_found /
@@ -350,16 +334,12 @@ def calculate_failure_stats(
         "Metric": [
             "Selected Records",
             "Failures Found",
-            "Failures Missed",
             "Failure Rate (%)",
-            # "False Negative Rate (%)"
         ],
         "Value": [
             len(subset),
             failures_found,
-            failures_missed,
             round(failure_rate, 2),
-            # round(fnr, 2)
         ]
     })
 
@@ -438,7 +418,6 @@ health_counts, health_pct = create_heatmap_data(
 
 health_stats = calculate_failure_stats(
     top_health,
-    working_df,
     failure_col
 )
 
@@ -475,7 +454,6 @@ risk_counts, risk_pct = create_heatmap_data(
 
 risk_stats = calculate_failure_stats(
     top_risk,
-    working_df,
     failure_col
 )
 
