@@ -97,10 +97,6 @@ distribution_filter = st.sidebar.multiselect(
     default=available_distribution_values
 )
 
-if not distribution_filter:
-    st.warning("Please select at least one relay population value.")
-    st.stop()
-
 working_df = df[
     df[distribution_col].astype(str).isin(distribution_filter)
 ].copy()
@@ -112,12 +108,7 @@ if working_df.empty:
     )
     st.stop()
 
-if len(working_df) < 4:
-    st.warning(
-        f"Only {len(working_df)} records available after filtering. "
-        "Need at least 4 records for proper analysis. Try selecting more categories."
-    )
-    st.stop()
+
 
 
 def safe_qcut(series, q, labels):
@@ -203,35 +194,36 @@ st.sidebar.markdown(
 health_quartiles = ["Q1", "Q2", "Q3", "Q4"]
 risk_quartiles = ["Q1", "Q2", "Q3", "Q4"]
 
+
+
 working_df["Health_Q"] = pd.Series(dtype="object", index=working_df.index)
 
 health_mask = working_df[health_col].notna()
 
-try:
-    if health_mask.sum() >= 4:
-        working_df.loc[health_mask, "Health_Q"] = safe_qcut(
-            working_df.loc[health_mask, health_col],
-            q=4,
-            labels=health_quartiles,
-        )
-except Exception as e:
-    st.error(f"Error calculating health quartiles: {str(e)}")
-    st.stop()
+if health_mask.sum() >= 4:
+
+    working_df.loc[health_mask, "Health_Q"] = safe_qcut(
+        working_df.loc[health_mask, health_col],
+        q=4,
+        labels=health_quartiles,
+    )
+
+
 
 working_df["Risk_Q"] = pd.Series(dtype="object", index=working_df.index)
 
 risk_mask = working_df[risk_col].notna()
 
-try:
-    if risk_mask.sum() >= 4:
-        working_df.loc[risk_mask, "Risk_Q"] = safe_qcut(
-            working_df.loc[risk_mask, risk_col],
-            q=4,
-            labels=risk_quartiles,
-        )
-except Exception as e:
-    st.error(f"Error calculating risk quartiles: {str(e)}")
-    st.stop()
+if risk_mask.sum() >= 4:
+
+    working_df.loc[risk_mask, "Risk_Q"] = safe_qcut(
+        working_df.loc[risk_mask, risk_col],
+        q=4,
+        labels=risk_quartiles,
+    )
+
+
+#quartiles = ["Q1", "Q2", "Q3", "Q4"]
 
 
 
@@ -318,10 +310,11 @@ def plot_heatmap(df_pct, title):
 
 def calculate_failure_stats(
     subset,
+    full_df,
     failure_col
 ):
     total_failures = (
-        subset[failure_col]
+        full_df[failure_col]
         .notna()
         .sum()
     )
@@ -331,6 +324,19 @@ def calculate_failure_stats(
         .notna()
         .sum()
     )
+
+    failures_missed = (
+        total_failures -
+        failures_found
+    )
+
+    # fnr = (
+    #     failures_missed /
+    #     total_failures *
+    #     100
+    #     if total_failures > 0
+    #     else 0
+    # )
 
     failure_rate = (
         failures_found /
@@ -344,12 +350,16 @@ def calculate_failure_stats(
         "Metric": [
             "Selected Records",
             "Failures Found",
+            "Failures Missed",
             "Failure Rate (%)",
+            # "False Negative Rate (%)"
         ],
         "Value": [
             len(subset),
             failures_found,
+            failures_missed,
             round(failure_rate, 2),
+            # round(fnr, 2)
         ]
     })
 
@@ -410,138 +420,117 @@ def failure_breakdown(
 # TOP HEALTH
 # ==========================================================
 
-try:
-    top_health = (
-        working_df
-        .sort_values(
-            health_col,
-            ascending=False
-        )
-        .head(selected_size)
+top_health = (
+    working_df
+    .sort_values(
+        health_col,
+        ascending=False
     )
+    .head(selected_size)
+)
 
-    if top_health.empty:
-        raise ValueError("No health data available to display")
+health_counts, health_pct = create_heatmap_data(
+    top_health,
+    "Health_Q",
+    "Risk_Q",
+    "health"
+)
 
-    health_counts, health_pct = create_heatmap_data(
-        top_health,
-        "Health_Q",
-        "Risk_Q",
-        "health"
-    )
+health_stats = calculate_failure_stats(
+    top_health,
+    working_df,
+    failure_col
+)
 
-    health_stats = calculate_failure_stats(
-        top_health,
-        failure_col
-    )
+health_dist = quartile_distribution(
+    top_health,
+    "Risk_Q",
+)
 
-    health_dist = quartile_distribution(
-        top_health,
-        "Risk_Q",
-    )
-
-    health_failure_breakdown = failure_breakdown(
-        top_health,
-        "Health_Q",
-        failure_col
-    )
-except Exception as e:
-    st.error(f"Error processing health data: {str(e)}")
-    st.stop()
+health_failure_breakdown = failure_breakdown(
+    top_health,
+    "Health_Q",
+    failure_col
+)
 
 # ==========================================================
 # TOP RISK
 # ==========================================================
 
-try:
-    top_risk = (
-        working_df
-        .sort_values(
-            risk_col,
-            ascending=False
-        )
-        .head(selected_size)
+top_risk = (
+    working_df
+    .sort_values(
+        risk_col,
+        ascending=False
     )
+    .head(selected_size)
+)
 
-    if top_risk.empty:
-        raise ValueError("No risk data available to display")
+risk_counts, risk_pct = create_heatmap_data(
+    top_risk,
+    "Risk_Q",
+    "Health_Q",
+    "risk"
+)
 
-    risk_counts, risk_pct = create_heatmap_data(
-        top_risk,
-        "Risk_Q",
-        "Health_Q",
-        "risk"
-    )
+risk_stats = calculate_failure_stats(
+    top_risk,
+    working_df,
+    failure_col
+)
 
-    risk_stats = calculate_failure_stats(
-        top_risk,
-        failure_col
-    )
+risk_dist = quartile_distribution(
+    top_risk,
+    "Health_Q",
+)
 
-    risk_dist = quartile_distribution(
-        top_risk,
-        "Health_Q",
-    )
-
-    risk_failure_breakdown = failure_breakdown(
-        top_risk,
-        "Risk_Q",
-        failure_col
-    )
-except Exception as e:
-    st.error(f"Error processing risk data: {str(e)}")
-    st.stop()
+risk_failure_breakdown = failure_breakdown(
+    top_risk,
+    "Risk_Q",
+    failure_col
+)
 
 # ==========================================================
 # FAILURE ANALYSIS
 # ==========================================================
 
-try:
-    failure_df = (
-        working_df[
-            working_df[failure_col].notna()
-        ]
-        .copy()
-    )
+failure_df = (
+    working_df[
+        working_df[failure_col].notna()
+    ]
+    .copy()
+)
 
-    if failure_df.empty:
-        failure_counts = pd.DataFrame()
-        failure_pct = pd.DataFrame()
-        combined_table = pd.DataFrame(columns=["Quartile Pair", "Failure Count", "% of Failures"])
-    else:
-        failure_counts, failure_pct = create_heatmap_data(
-            failure_df,
-            "Health_Q",
-            "Risk_Q",
-            "health"
-        )
+failure_counts, failure_pct = create_heatmap_data(
+    failure_df,
+    "Health_Q",
+    "Risk_Q",
+    "health"
+)
 
-        failure_df["Combined_Q"] = (
-            failure_df["Health_Q"].astype(str)
-            + "-"
-            + failure_df["Risk_Q"].astype(str)
-        )
+failure_df["Combined_Q"] = (
+    failure_df["Health_Q"].astype(str)
+    + "-"
+    + failure_df["Risk_Q"].astype(str)
+)
 
-        combined_table = (
-            failure_df["Combined_Q"]
-            .value_counts()
-            .reset_index()
-        )
+combined_table = (
+    failure_df["Combined_Q"]
+    .value_counts()
+    .reset_index()
+)
 
-        combined_table.columns = [
-            "Quartile Pair",
-            "Failure Count"
-        ]
+combined_table.columns = [
+    "Quartile Pair",
+    "Failure Count"
+]
 
-        combined_table["% of Failures"] = (
-            combined_table["Failure Count"]
-            /
-            combined_table["Failure Count"].sum()
-            * 100
-        ).round(2)
-except Exception as e:
-    st.error(f"Error processing failure analysis: {str(e)}")
-    st.stop()
+combined_table["% of Failures"] = (
+    combined_table["Failure Count"]
+    /
+    combined_table["Failure Count"].sum()
+    * 100
+).round(2)
 
 # ==========================================================
 # KPI BAR
