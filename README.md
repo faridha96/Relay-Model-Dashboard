@@ -4,7 +4,8 @@ This repository contains a Streamlit dashboard for analyzing health-risk failure
 
 ## Files
 
-- `dashboard_V2.py` - Streamlit app source code.
+- `dashboard_V2.py` - Streamlit dashboard implementation.
+- `streamlit_app.py` - Streamlit entrypoint used for deployment.
 - `requirements.txt` - Python dependencies required to run the app.
 - `.gitignore` - Files and folders to ignore in Git.
 
@@ -20,9 +21,9 @@ This repository contains a Streamlit dashboard for analyzing health-risk failure
    ```bash
    pip install -r requirements.txt
    ```
-4. Start the app:
+4. Start the app locally:
    ```bash
-   streamlit run dashboard_V2.py
+   streamlit run streamlit_app.py
    ```
 
 ## Deploy on GitHub
