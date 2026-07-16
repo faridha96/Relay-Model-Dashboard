@@ -110,6 +110,39 @@ if working_df.empty:
 
 
 
+
+def safe_qcut(series, q, labels):
+    try:
+        return pd.qcut(
+            series,
+            q=q,
+            labels=labels,
+            duplicates="drop"
+        ).astype("object")
+    except Exception:
+        unique_values = series.dropna().unique()
+        bins = min(q, max(1, len(unique_values)))
+        if bins == 1:
+            return pd.Series(
+                [labels[0]] * len(series),
+                index=series.index,
+                dtype="object"
+            )
+
+        try:
+            return pd.cut(
+                series,
+                bins=bins,
+                labels=labels[:bins]
+            ).astype("object")
+        except Exception:
+            return pd.Series(
+                [labels[0]] * len(series),
+                index=series.index,
+                dtype="object"
+            )
+
+
 # ==========================================================
 # TOP N / TOP %
 # ==========================================================
@@ -273,38 +306,6 @@ def plot_heatmap(df_pct, title):
     )
 
     return fig
-
-
-def safe_qcut(series, q, labels):
-    try:
-        return pd.qcut(
-            series,
-            q=q,
-            labels=labels,
-            duplicates="drop"
-        ).astype("object")
-    except Exception:
-        unique_values = series.dropna().unique()
-        bins = min(q, max(1, len(unique_values)))
-        if bins == 1:
-            return pd.Series(
-                [labels[0]] * len(series),
-                index=series.index,
-                dtype="object"
-            )
-
-        try:
-            return pd.cut(
-                series,
-                bins=bins,
-                labels=labels[:bins]
-            ).astype("object")
-        except Exception:
-            return pd.Series(
-                [labels[0]] * len(series),
-                index=series.index,
-                dtype="object"
-            )
 
 
 def calculate_failure_stats(
