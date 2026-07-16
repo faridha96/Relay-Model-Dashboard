@@ -1,0 +1,19 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Streamlit artifacts
+.streamlit/
+
+# Data files
+*.csv
+*.xlsx
+*.xls
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
