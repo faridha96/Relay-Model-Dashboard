@@ -14,14 +14,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize session state
-if "selection_mode" not in st.session_state:
-    st.session_state.selection_mode = "Top N Records"
-if "selected_size" not in st.session_state:
-    st.session_state.selected_size = None
-if "selected_percent" not in st.session_state:
-    st.session_state.selected_percent = 10
-
 st.title("Health-Risk Failure Dashboard")
 
 # ==========================================================
@@ -155,45 +147,39 @@ def safe_qcut(series, q, labels):
 # TOP N / TOP %
 # ==========================================================
 
-max_records = len(working_df)
-
-st.session_state.selection_mode = st.sidebar.radio(
+selection_mode = st.sidebar.radio(
     "Selection Mode",
     [
         "Top N Records",
         "Top Percent"
-    ],
-    index=0 if st.session_state.selection_mode == "Top N Records" else 1,
-    key="selection_mode_radio"
+    ]
 )
 
-if st.session_state.selection_mode == "Top N Records":
-    if st.session_state.selected_size is None:
-        st.session_state.selected_size = min(100, max_records)
-    
-    st.session_state.selected_size = st.sidebar.slider(
+max_records = len(working_df)
+
+if selection_mode == "Top N Records":
+
+    selected_size = st.sidebar.slider(
         "Top N",
         min_value=1,
         max_value=max_records,
-        value=st.session_state.selected_size,
-        step=1,
-        key="top_n_slider"
+        value=min(100, max_records),
+        step=1
     )
-    selected_size = st.session_state.selected_size
 
 else:
-    st.session_state.selected_percent = st.sidebar.slider(
+
+    selected_percent = st.sidebar.slider(
         "Top Percent",
         min_value=1,
         max_value=100,
-        value=st.session_state.selected_percent,
-        step=1,
-        key="top_percent_slider"
+        value=10,
+        step=1
     )
-    
+
     selected_size = max(
         1,
-        int(max_records * st.session_state.selected_percent / 100)
+        int(max_records * selected_percent / 100)
     )
 
 st.sidebar.markdown(
@@ -208,15 +194,36 @@ st.sidebar.markdown(
 health_quartiles = ["Q1", "Q2", "Q3", "Q4"]
 risk_quartiles = ["Q1", "Q2", "Q3", "Q4"]
 
-# Use cached quartile calculations
-working_df = calculate_all_metrics(
-    working_df,
-    health_col,
-    risk_col,
-    failure_col,
-    health_quartiles,
-    risk_quartiles
-)
+
+
+working_df["Health_Q"] = pd.Series(dtype="object", index=working_df.index)
+
+health_mask = working_df[health_col].notna()
+
+if health_mask.sum() >= 4:
+
+    working_df.loc[health_mask, "Health_Q"] = safe_qcut(
+        working_df.loc[health_mask, health_col],
+        q=4,
+        labels=health_quartiles,
+    )
+
+
+
+working_df["Risk_Q"] = pd.Series(dtype="object", index=working_df.index)
+
+risk_mask = working_df[risk_col].notna()
+
+if risk_mask.sum() >= 4:
+
+    working_df.loc[risk_mask, "Risk_Q"] = safe_qcut(
+        working_df.loc[risk_mask, risk_col],
+        q=4,
+        labels=risk_quartiles,
+    )
+
+
+#quartiles = ["Q1", "Q2", "Q3", "Q4"]
 
 
 
@@ -226,69 +233,7 @@ working_df = calculate_all_metrics(
 # HELPERS
 # ==========================================================
 
-@st.cache_data
-def calculate_all_metrics(
-    df_input,
-    health_col,
-    risk_col,
-    failure_col,
-    health_quartiles,
-    risk_quartiles
-):
-    """Cache all heavy computations"""
-    
-    working_df_copy = df_input.copy()
-    
-    working_df_copy["Health_Q"] = pd.Series(dtype="object", index=working_df_copy.index)
-    health_mask = working_df_copy[health_col].notna()
-    
-    if health_mask.sum() >= 4:
-        working_df_copy.loc[health_mask, "Health_Q"] = safe_qcut(
-            working_df_copy.loc[health_mask, health_col],
-            q=4,
-            labels=health_quartiles,
-        )
-    
-    working_df_copy["Risk_Q"] = pd.Series(dtype="object", index=working_df_copy.index)
-    risk_mask = working_df_copy[risk_col].notna()
-    
-    if risk_mask.sum() >= 4:
-        working_df_copy.loc[risk_mask, "Risk_Q"] = safe_qcut(
-            working_df_copy.loc[risk_mask, risk_col],
-            q=4,
-            labels=risk_quartiles,
-        )
-    
-    return working_df_copy
-
-
-@st.cache_data
-def get_top_health_data(df_input, health_col, selected_size):
-    """Cache top health calculations"""
-    return (
-        df_input
-        .sort_values(health_col, ascending=False)
-        .head(selected_size)
-    )
-
-
-@st.cache_data
-def get_top_risk_data(df_input, risk_col, selected_size):
-    """Cache top risk calculations"""
-    return (
-        df_input
-        .sort_values(risk_col, ascending=False)
-        .head(selected_size)
-    )
-
-
-@st.cache_data
-def get_failure_data(df_input, failure_col):
-    """Cache failure data filtering"""
-    return df_input[df_input[failure_col].notna()].copy()
-
-
-def create_heatmap_data(df_subset, rows, cols, type):
+def create_heatmap_data(df_subset, rows, cols,type):
 
     counts = pd.crosstab(
         df_subset[rows],
@@ -385,6 +330,14 @@ def calculate_failure_stats(
         failures_found
     )
 
+    # fnr = (
+    #     failures_missed /
+    #     total_failures *
+    #     100
+    #     if total_failures > 0
+    #     else 0
+    # )
+
     failure_rate = (
         failures_found /
         len(subset)
@@ -399,12 +352,14 @@ def calculate_failure_stats(
             "Failures Found",
             "Failures Missed",
             "Failure Rate (%)",
+            # "False Negative Rate (%)"
         ],
         "Value": [
             len(subset),
             failures_found,
             failures_missed,
             round(failure_rate, 2),
+            # round(fnr, 2)
         ]
     })
 
@@ -465,7 +420,14 @@ def failure_breakdown(
 # TOP HEALTH
 # ==========================================================
 
-top_health = get_top_health_data(working_df, health_col, selected_size)
+top_health = (
+    working_df
+    .sort_values(
+        health_col,
+        ascending=False
+    )
+    .head(selected_size)
+)
 
 health_counts, health_pct = create_heatmap_data(
     top_health,
@@ -495,7 +457,14 @@ health_failure_breakdown = failure_breakdown(
 # TOP RISK
 # ==========================================================
 
-top_risk = get_top_risk_data(working_df, risk_col, selected_size)
+top_risk = (
+    working_df
+    .sort_values(
+        risk_col,
+        ascending=False
+    )
+    .head(selected_size)
+)
 
 risk_counts, risk_pct = create_heatmap_data(
     top_risk,
@@ -525,7 +494,12 @@ risk_failure_breakdown = failure_breakdown(
 # FAILURE ANALYSIS
 # ==========================================================
 
-failure_df = get_failure_data(working_df, failure_col)
+failure_df = (
+    working_df[
+        working_df[failure_col].notna()
+    ]
+    .copy()
+)
 
 failure_counts, failure_pct = create_heatmap_data(
     failure_df,
