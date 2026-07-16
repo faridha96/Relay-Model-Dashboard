@@ -34,7 +34,13 @@ uploaded_file = st.sidebar.file_uploader(
     type=["csv", "xlsx", "xls"]
 )
 
+st.sidebar.caption("Supported formats: CSV, XLSX, XLS")
+
 if uploaded_file is None:
+    st.info(
+        "Upload a CSV or Excel file from the sidebar to display the dashboard. "
+        "If you don't see the sidebar, expand the menu in the top-left corner."
+    )
     st.stop()
 
 df = load_file(uploaded_file)
