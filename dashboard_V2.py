@@ -191,8 +191,8 @@ st.sidebar.markdown(
 # QUARTILES
 # ==========================================================
 
-health_quartiles = ["Q1", "Q2", "Q3", "Q4"]
-risk_quartiles = ["Q1", "Q2", "Q3", "Q4"]
+health_quartiles = ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8"]
+risk_quartiles = ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8"]
 
 
 
@@ -200,11 +200,11 @@ working_df["Health_Q"] = pd.Series(dtype="object", index=working_df.index)
 
 health_mask = working_df[health_col].notna()
 
-if health_mask.sum() >= 4:
+if health_mask.sum() >= 8:
 
     working_df.loc[health_mask, "Health_Q"] = safe_qcut(
         working_df.loc[health_mask, health_col],
-        q=4,
+        q=8,
         labels=health_quartiles,
     )
 
@@ -214,11 +214,11 @@ working_df["Risk_Q"] = pd.Series(dtype="object", index=working_df.index)
 
 risk_mask = working_df[risk_col].notna()
 
-if risk_mask.sum() >= 4:
+if risk_mask.sum() >= 8:
 
     working_df.loc[risk_mask, "Risk_Q"] = safe_qcut(
         working_df.loc[risk_mask, risk_col],
-        q=4,
+        q=8,
         labels=risk_quartiles,
     )
 
